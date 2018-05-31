@@ -4,8 +4,6 @@ import unittest
 
 from mtg_nn_bot.service.draft_controller import DraftController
 
-import numpy as np
-
 class ModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -14,7 +12,7 @@ class ModelTests(unittest.TestCase):
 
     def test1(self):
         draft1 = self.processor.start_draft([False,True,True,True,True,True,True,True], 1)
-        draft2 = self.processor.start_draft([True,False,True,True,True,False,True,True], 2)
+        draft2 = self.processor.start_draft([True,True,True,True,True,True,True,True], 2)
         self.processor.predict([draft1, draft2])
         self.log_draft(draft1, "/home/ivodopyanov/MTG/processor_tests/draft1.txt")
         self.log_draft(draft2, "/home/ivodopyanov/MTG/processor_tests/draft2.txt")

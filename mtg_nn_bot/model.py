@@ -90,7 +90,7 @@ class Model(object):
     def build(self):
         card_embeddings = tf.get_variable(name="card_embeddings_var",
                                           dtype=tf.float32,
-                                          shape=[self.settings['max_card_count'], self.settings['emb_dim']])
+                                          shape=[self.settings['card_count']+1, self.settings['emb_dim']])
         v = tf.get_variable("attention_v", [self.settings['rnn_units']], dtype=tf.float32)
         query_layer = tf.layers.Dense(units=self.settings['rnn_units'], use_bias=False, dtype=tf.float32, name="query_layer")
         memory_layer = tf.layers.Dense(units=self.settings['rnn_units'], use_bias=False, dtype=tf.float32, name="memory_layer")

@@ -9,28 +9,20 @@ import tensorflow as tf
 import json
 from collections import defaultdict
 
-def init_settings():
-    settings = dict(emb_dim=32,
-                    rnn_units=32,
-                    batch_size=8,
-                    max_card_count=1000,
-                    dropout=.6,
-                    lr=0.001,
-                    dir=os.path.expanduser("~/MTG"),
-                    progbar_label_count=3,
-                    split=0.8,
-                    pack_size=14,
-                    player_num=8,
-                    round_num=3)
-    return settings
-
 class Trainer(object):
-    def __init__(self, settings):
-        self.settings = settings
+    def __init__(self, settings_path):
+        with open(settings_path, "rt") as f:
+            self.settings = json.load(f)
+            self.settings['dir'] = os.path.expanduser(self.settings['dir'])
 
-    def load_data(self, path):
+    def load_data(self, format_code):
+        with open(os.path.join(self.settings['dir'], format_code, "index.txt"), "rt") as f:
+            card_count = 0
+            for _ in f:
+                card_count += 1
+            self.settings['card_count'] = card_count
         total_data = []
-        with open(path, "rt") as f:
+        with open(os.path.join(self.settings['dir'], format_code, "data.txt"), "rt") as f:
             for line_id, line in enumerate(f):
                 line = line.replace("<",",")
                 data = line.rstrip("\n").split(",")
@@ -53,7 +45,7 @@ class Trainer(object):
 
 
     def train(self, format_code, epochs):
-        data = self.load_data(os.path.join(self.settings['dir'], format_code, "data.txt"))
+        data = self.load_data(format_code)
         split = int(len(data)*self.settings['split'])
         training_data = data[:split]
         test_data = data[split:]
@@ -154,6 +146,5 @@ class Trainer(object):
 
 
 if __name__ == "__main__":
-    settings = init_settings()
-    trainer = Trainer(settings)
+    trainer = Trainer("settings.json")
     trainer.train("IXA_IXA_IXA", 5000)

@@ -5,15 +5,15 @@ import os
 import sys
 from random import shuffle
 
-from model import load, Model
+from ..model import load
 
 class ModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.sess = tf.Session()
-        cls.model = load(os.path.expanduser("~/MTG"), cls.sess)
-        cls.drafts = cls.load_data(os.path.join(os.path.expanduser("~/MTG"), "IXA_IXA_IXA.txt"))
-        cls.index = cls.load_index(os.path.join(os.path.expanduser("~/MTG"), "index.txt"))
+        cls.model = load(os.path.expanduser("~/MTG/IXA_IXA_IXA"), cls.sess)
+        cls.drafts = cls.load_data(os.path.expanduser("~/MTG/IXA_IXA_IXA/data.txt"))
+        cls.index = cls.load_index(os.path.expanduser("~/MTG/IXA_IXA_IXA/index.txt"))
 
 
     @classmethod
