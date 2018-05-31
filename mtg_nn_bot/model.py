@@ -30,7 +30,6 @@ class Model(object):
         picks_weights = tf.multiply(tf.transpose(picks_mask, [1,0]), picks_num)
         picks_weighted = tf.transpose(tf.multiply(tf.transpose(picks_embedded, [2,1,0]), picks_weights), [2,1,0])
         picks_encoded = tf.reduce_sum(picks_weighted, axis=1)
-        #picks_encoded = tf.layers.Dense(units=self.settings['rnn_units'])(picks_encoded)
 
 
         scores = tf.reduce_sum(v * tf.nn.tanh(memory_layer(packs_embedded) + tf.expand_dims(query_layer(picks_encoded), 1)), [2], name="scores")
@@ -44,10 +43,10 @@ class Model(object):
 
     def build_draft_predictor(self, card_embeddings, v, memory_layer, query_layer):
         with tf.variable_scope("draft"):
-            packs = tf.placeholder(tf.int32, shape=[None, 8, self.settings['pack_size']], name="packs")
-            picked = tf.placeholder(tf.float32, shape=[None, 8, self.settings['emb_dim']], name="picked")
+            packs = tf.placeholder(tf.int32, shape=[None, self.settings['player_num'], self.settings['pack_size']], name="packs")
+            picked = tf.placeholder(tf.float32, shape=[None, self.settings['player_num'], self.settings['emb_dim']], name="picked")
             pack_num = tf.placeholder(tf.int32, shape=[None], name="pack_num")
-            picks = tf.placeholder(tf.int32, shape=[None, 8, self.settings['pack_size']], name="picks")
+            picks = tf.placeholder(tf.int32, shape=[None, self.settings['player_num'], self.settings['pack_size']], name="picks")
 
             packs_embedded = tf.nn.embedding_lookup(card_embeddings, packs, name="packs_embeddings")
             def pick_step(initializer, elems):
@@ -139,15 +138,15 @@ class Model(object):
 
 
     def get_feed_dict_predict_draft(self, sess, X):
-        packs = np.zeros((len(X), 8, self.settings['pack_size']), dtype=np.int32)
-        picked = np.zeros((len(X), 8, self.settings['emb_dim']), dtype=np.float32)
+        packs = np.zeros((len(X), self.settings['player_num'], self.settings['pack_size']), dtype=np.int32)
+        picked = np.zeros((len(X), self.settings['player_num'], self.settings['emb_dim']), dtype=np.float32)
         pack_nums = np.zeros((len(X),), dtype=np.int32)
-        picks = np.zeros((len(X), 8, self.settings['pack_size']))
+        picks = np.zeros((len(X), self.settings['player_num'], self.settings['pack_size']))
         for draft_id, draft in enumerate(X):
-            packs[draft_id] = draft['packs'][draft['pack_num']]
-            picked[draft_id] = draft['picked']
-            pack_nums[draft_id] = draft['pack_num']
-            picks[draft_id] = draft['picks'][draft['pack_num']]
+            packs[draft_id] = draft.packs[draft.pack_num]
+            picked[draft_id] = draft.picked
+            pack_nums[draft_id] = draft.pack_num
+            picks[draft_id] = draft.picks[draft.pack_num]
         feed = {
             sess.graph.get_tensor_by_name("draft/packs:0"): packs,
             sess.graph.get_tensor_by_name("draft/picked:0"): picked,

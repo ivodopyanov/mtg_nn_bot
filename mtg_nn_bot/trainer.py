@@ -19,7 +19,9 @@ def init_settings():
                     dir=os.path.expanduser("~/MTG"),
                     progbar_label_count=3,
                     split=0.8,
-                    pack_size=14)
+                    pack_size=14,
+                    player_num=8,
+                    round_num=3)
     return settings
 
 class Trainer(object):
@@ -51,7 +53,7 @@ class Trainer(object):
 
 
     def train(self, format_code, epochs):
-        data = self.load_data(os.path.join(self.settings['dir'], "{}.txt".format(format_code)))
+        data = self.load_data(os.path.join(self.settings['dir'], format_code, "data.txt"))
         split = int(len(data)*self.settings['split'])
         training_data = data[:split]
         test_data = data[split:]
@@ -66,8 +68,8 @@ class Trainer(object):
                 self.do_test(test_data, model, sess)
                 end_time = time.time()
                 sys.stdout.write("Time for epoch: {:.2f}s\n".format((end_time-start_time)))
-                tf.train.Saver(tf.trainable_variables()).save(sess, os.path.join(self.settings['dir'], "model"))
-                with open(os.path.join(self.settings['dir'],"settings.json"), "wt") as f:
+                tf.train.Saver(tf.trainable_variables()).save(sess, os.path.join(self.settings['dir'], format_code, "model"))
+                with open(os.path.join(self.settings['dir'], format_code, "settings.json"), "wt") as f:
                     f.write(json.dumps(self.settings))
 
 

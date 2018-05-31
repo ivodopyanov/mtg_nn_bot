@@ -2,41 +2,37 @@
 import os
 import unittest
 
-from mtg_nn_bot.draft_controller import DraftController
+from mtg_nn_bot.service.draft_controller import DraftController
 
+import numpy as np
 
 class ModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.processor = DraftController(os.path.expanduser("~/MTG"), "IXA_IXA_IXA_index.txt")
+        cls.processor = DraftController(os.path.expanduser("~/MTG/IXA_IXA_IXA"))
 
 
     def test1(self):
         draft1 = self.processor.start_draft([False,True,True,True,True,True,True,True], 1)
         draft2 = self.processor.start_draft([True,False,True,True,True,False,True,True], 2)
         self.processor.predict([draft1, draft2])
-        self.processor.predict([draft1, draft2])
-        self.processor.predict([draft1, draft2])
         self.log_draft(draft1, "/home/ivodopyanov/MTG/processor_tests/draft1.txt")
         self.log_draft(draft2, "/home/ivodopyanov/MTG/processor_tests/draft2.txt")
 
     def log_draft(self, draft, path):
         f = open(path, "wt")
-        for pack_num in range(3):
-            current_packs = [list(pack) for pack in draft['packs'][pack_num]]
-            for pick_num in range(self.processor.model.settings['pack_size']):
+        for pack_num in range(self.processor.model.settings['round_num']):
+            for pick_num, packs in enumerate(draft.iterate_over_packs_in_round(pack_num)):
                 card_names = []
-                for player_num in range(8):
-                    chosen_card = draft['picks'][pack_num][player_num][pick_num]
-                    if current_packs[player_num][chosen_card] == 0:
-                        raise Exception("Pack {} pick {} player {}".format(pack_num, pick_num, player_num))
-                    card_names.append(self.processor.index[current_packs[player_num][chosen_card]-1])
-                    current_packs[player_num][chosen_card] = 0
+                for player_num, player in enumerate(draft.players):
+                    chosen_card = draft.picks[pack_num, player_num, pick_num] - 1
+                    if chosen_card == -1:
+                        card_names.append("empty")
+                    else:
+                        if packs[player_num, chosen_card] == 0:
+                            raise Exception("Pack {} pick {} player {}".format(pack_num, pick_num, player_num))
+                        card_names.append(self.processor.index[packs[player_num, chosen_card]-1])
                 f.write("{}\n".format("||".join(card_names)))
-                if pack_num%2==0:
-                    current_packs = current_packs[-1:]+current_packs[:-1]
-                else:
-                    current_packs = current_packs[1:]+current_packs[:1]
         f.close()
 
 
