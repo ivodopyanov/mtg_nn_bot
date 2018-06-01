@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import json
 
 from mtg_nn_bot.service.draft_controller import DraftController
 
 
 class ConsoleService(object):
-    def __init__(self, format):
-        self.processor = DraftController(os.path.expanduser(os.path.join("~/MTG", format)))
-
+    def __init__(self, format_code):
+        self.processor = DraftController(format_code)
 
     def run(self):
-
         draft = self.processor.start_draft([False,True,True,True,True,True,True,True], 1)
         while True:
             current_pick_num = draft.get_last_pick_num_made_by_player(0)

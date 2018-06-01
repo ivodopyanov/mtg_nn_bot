@@ -1,0 +1,12 @@
+{
+  "emb_dim": 32,
+  "rnn_units": 32,
+  "dropout": 0.6,
+  "split": 0.8,
+  "batch_size": 8,
+  "lr": 0.001,
+  "progbar_label_count": 3,
+  "pack_size": 14,
+  "player_num": 8,
+  "round_num": 3
+}

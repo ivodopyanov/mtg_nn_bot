@@ -4,11 +4,13 @@ import json
 import os
 from io import open
 import numpy as np
+from . import DIR
 
 
 class Model(object):
-    def __init__(self, settings):
-        self.settings = settings
+    def __init__(self, format_code):
+        with open(os.path.join(DIR, "models", format_code, "format_settings.json"), "rt") as f:
+            self.settings = json.load(f)
 
 
     def build_trainer(self, card_embeddings, v, memory_layer, query_layer):
@@ -165,10 +167,8 @@ class Model(object):
 
 
 
-def load(path, sess):
-    with open(os.path.join(path, "settings.json"), "rt", encoding="utf8") as f:
-        settings = json.load(f)
-        model = Model(settings=settings)
-        saver = tf.train.import_meta_graph(os.path.join(path, "model.meta"), graph=sess.graph)
-        saver.restore(sess, os.path.join(path, "model"))
-        return model
+def load(format, sess):
+    saver = tf.train.import_meta_graph(os.path.join(DIR, "models", format, "model.meta"))
+    saver.restore(sess, os.path.join(DIR, "models", format, "model"))
+    model = Model(format_code=format)
+    return model

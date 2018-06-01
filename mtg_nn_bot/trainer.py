@@ -8,21 +8,22 @@ from random import shuffle
 import tensorflow as tf
 import json
 from collections import defaultdict
+from . import DIR
 
 class Trainer(object):
-    def __init__(self, settings_path):
-        with open(settings_path, "rt") as f:
-            self.settings = json.load(f)
-            self.settings['dir'] = os.path.expanduser(self.settings['dir'])
+    def __init___(self, format_code):
+        self.format_code = format_code
 
-    def load_data(self, format_code):
-        with open(os.path.join(self.settings['dir'], format_code, "index.txt"), "rt") as f:
+    def load_data(self):
+        with open(os.path.join(DIR, "models", self.format_code, "format_settings.json"), "rt") as f:
+            self.settings = json.load(f)
+        with open(os.path.join(DIR, "models", self.format_code, "index.txt"), "rt") as f:
             card_count = 0
             for _ in f:
                 card_count += 1
             self.settings['card_count'] = card_count
         total_data = []
-        with open(os.path.join(self.settings['dir'], format_code, "data.txt"), "rt") as f:
+        with open(os.path.join(DIR, "models", self.format_code, "data.txt"), "rt") as f:
             for line_id, line in enumerate(f):
                 line = line.replace("<",",")
                 data = line.rstrip("\n").split(",")
@@ -44,13 +45,13 @@ class Trainer(object):
         return X, Y
 
 
-    def train(self, format_code, epochs):
-        data = self.load_data(format_code)
+    def train(self, epochs):
+        data = self.load_data()
         split = int(len(data)*self.settings['split'])
         training_data = data[:split]
         test_data = data[split:]
         with tf.Session() as sess:
-            model = Model(self.settings)
+            model = Model(self.format_code, sess.graph)
             model.build()
             sess.run(tf.global_variables_initializer())
             for epoch in range(epochs):
@@ -60,9 +61,8 @@ class Trainer(object):
                 self.do_test(test_data, model, sess)
                 end_time = time.time()
                 sys.stdout.write("Time for epoch: {:.2f}s\n".format((end_time-start_time)))
-                tf.train.Saver(tf.trainable_variables()).save(sess, os.path.join(self.settings['dir'], format_code, "model"))
-                with open(os.path.join(self.settings['dir'], format_code, "settings.json"), "wt") as f:
-                    f.write(json.dumps(self.settings))
+                tf.train.Saver(tf.trainable_variables()).save(sess, os.path.join(DIR, "models", self.format_code, "model"))
+
 
 
     def do_train(self, training_data, model, sess):
@@ -146,5 +146,5 @@ class Trainer(object):
 
 
 if __name__ == "__main__":
-    trainer = Trainer("settings.json")
-    trainer.train("IXA_IXA_IXA", 5000)
+    trainer = Trainer("IXA_IXA_IXA")
+    trainer.train(5000)

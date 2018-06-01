@@ -3,19 +3,20 @@ import os
 import unittest
 
 from mtg_nn_bot.service.draft_controller import DraftController
+from .. import DIR
 
 class ModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.processor = DraftController(os.path.expanduser("~/MTG/IXA_IXA_IXA"))
+        cls.processor = DraftController(os.path.join(DIR, "models","IXA_IXA_IXA"))
 
 
     def test1(self):
         draft1 = self.processor.start_draft([False,True,True,True,True,True,True,True], 1)
         draft2 = self.processor.start_draft([True,True,True,True,True,True,True,True], 2)
         self.processor.predict([draft1, draft2])
-        self.log_draft(draft1, "/home/ivodopyanov/MTG/processor_tests/draft1.txt")
-        self.log_draft(draft2, "/home/ivodopyanov/MTG/processor_tests/draft2.txt")
+        self.log_draft(draft1, os.path.join(DIR, "processor_tests", "draft1.txt"))
+        self.log_draft(draft2, os.path.join(DIR, "processor_tests", "draft2.txt"))
 
     def log_draft(self, draft, path):
         f = open(path, "wt")

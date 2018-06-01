@@ -6,14 +6,15 @@ import sys
 from random import shuffle
 
 from ..model import load
+from .. import DIR
 
 class ModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.sess = tf.Session()
-        cls.model = load(os.path.expanduser("~/MTG/IXA_IXA_IXA"), cls.sess)
-        cls.drafts = cls.load_data(os.path.expanduser("~/MTG/IXA_IXA_IXA/data.txt"))
-        cls.index = cls.load_index(os.path.expanduser("~/MTG/IXA_IXA_IXA/index.txt"))
+        cls.model = load("IXA_IXA_IXA", cls.sess)
+        cls.drafts = cls.load_data(os.path.join(DIR, "models","IXA_IXA_IXA","data.txt"))
+        cls.index = cls.load_index(os.path.join(DIR, "models","IXA_IXA_IXA", "index.txt"))
 
 
     @classmethod
@@ -57,7 +58,7 @@ class ModelTests(unittest.TestCase):
 
     def test1(self):
         for batch_num in range(10):
-            with open(os.path.expanduser("~/MTG/tests/log_{}.txt".format(batch_num+1)), "wt") as f:
+            with open(os.path.join(DIR, "tests", "log_{}.txt".format(batch_num+1)), "wt") as f:
                 X, Y = self.build_batch(batch_num)
                 predicted, scores = self.model.predict(self.sess, X)
                 for sample_id, sample in enumerate(X):
