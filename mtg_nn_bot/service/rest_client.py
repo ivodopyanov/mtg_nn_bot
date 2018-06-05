@@ -3,7 +3,6 @@ import sys
 import os
 
 from flask import Flask, request, render_template, jsonify
-from flask_cache import Cache
 from logging.handlers import RotatingFileHandler
 import logging
 import numpy as np
@@ -12,7 +11,7 @@ from time import sleep
 import json
 
 from constants import *
-from draft_controller import load_draft_from_json, Draft
+from .. import DIR
 
 TIMEOUT = 0.5
 
@@ -23,6 +22,10 @@ R = redis.StrictRedis()
 @app.route("/start_draft", methods=['POST'])
 def start_draft():
     data = dict(request.form)
+    if 'format' not in data:
+        raise Exception("Missing parameter 'format'")
+    if 'players' not in data:
+        raise Exception("Missing parameter 'players'")
     temp_id = get_free_temp_draft_id()
     data['draft_temp_id'] = temp_id
     data['format'] = data['format'][0]
@@ -34,21 +37,58 @@ def start_draft():
         draft_id = R.get(DRAFT_TEMP_KEY.format(temp_id))
         if draft_id != "-1":
             R.delete(DRAFT_TEMP_KEY.format(temp_id))
+            R.srem(READY_DRAFTS, draft_id)
             draft = json.loads(R.get(DRAFT_KEY.format(draft_id)))
             del draft['picked']
             return jsonify(draft)
 
 @app.route("/make_pick", methods=['POST'])
 def make_pick():
-    draft_id = request.form['id']
-    R.rpush(MAKE_PICK, json.dumps(dict(request.form)))
+    data = dict(request.form)
+    if 'id' not in data:
+        raise Exception("Missing parameter 'id'")
+    if 'player' not in data:
+        raise Exception("Missing parameter 'player'")
+    if 'pack_num' not in data:
+        raise Exception("Missing parameter 'pack_num'")
+    if 'pick_num' not in data:
+        raise Exception("Missing parameter 'pick_num'")
+    if 'pick_pos' not in data:
+        raise Exception("Missing parameter 'pick_pos'")
+    data['id'] = int(data['id'][0])
+    data['pack_num'] = int(data['pack_num'][0])
+    data['pick_num'] = int(data['pick_num'][0])
+    data['player'] = int(data['player'][0])
+    data['pick_pos'] = int(data['pick_pos'][0])
+    R.rpush(MAKE_PICK, json.dumps(data))
     while True:
         sleep(TIMEOUT)
-        if R.sismember(READY_DRAFTS, draft_id):
-            R.srem(READY_DRAFTS, draft_id)
-            draft = json.loads(R.get(DRAFT_KEY.format(draft_id)))
+        if R.sismember(READY_DRAFTS, data['id']):
+            R.srem(READY_DRAFTS, data['id'])
+            draft = json.loads(R.get(DRAFT_KEY.format(data['id'])))
             del draft['picked']
             return jsonify(draft)
+        elif os.path.exists(os.path.join(DIR, "drafts", "{}.json".format(data['id']))):
+            with open(os.path.join(DIR, "drafts", "{}.json".format(data['id'])), "rt") as f:
+                draft = json.load(f)
+                return jsonify(draft)
+
+@app.route("/get_draft", methods=['POST'])
+def get_draft():
+    if 'id' not in request.form:
+        raise Exception("Missing parameter 'id'")
+    id = request.form['id']
+    draft = R.get(DRAFT_KEY.format(id))
+    if draft is not None:
+        draft = json.loads(draft)
+        del draft['picked']
+    elif os.path.exists(os.path.join(DIR, "drafts", "{}.json".format(id))):
+        with open(os.path.join(DIR, "drafts", "{}.json".format(id)), "rt") as f:
+            draft = json.load(f)
+    else:
+        raise Exception("Draft #{} is missing".format(id))
+    return jsonify(draft)
+
 
 @app.route('/shutdown_mvutnsifhny', methods=['POST'])
 def shutdown():

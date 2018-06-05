@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-from mtg_nn_bot.model import load
+from mtg_nn_bot.model import load, Model
 import tensorflow as tf
 import numpy as np
 from random import choice, randint
@@ -37,7 +37,32 @@ class Draft(object):
     def get_last_pick_num_made_by_player(self, player):
         return np.argmin(np.not_equal(self.picks[self.pack_num, player], 0))
 
-    def to_json(self):
+    def get_pack(self, round_num, player, pick_num):
+        if round_num%2==0:
+            original_pack_pos = (player-pick_num)%len(self.players)
+        else:
+            original_pack_pos = (player+pick_num)%len(self.players)
+        pack = list(self.packs[round_num, original_pack_pos])
+
+        for pick_num in range(pick_num):
+            if round_num%2==0:
+                intermediate_pick_pos = (original_pack_pos+pick_num)%len(self.players)
+            else:
+                intermediate_pick_pos = (original_pack_pos-pick_num)%len(self.players)
+            if self.picks[round_num, intermediate_pick_pos, pick_num] == 0:
+                return None
+            pack[self.picks[round_num, intermediate_pick_pos, pick_num]-1] = 0
+        return pack
+
+    def get_picked(self, round_num, player, pick_num):
+        buf = []
+        for round in range(round_num):
+            buf.extend(self.picks[round, player].tolist())
+        buf.extend(self.picks[round_num, player,:pick_num].tolist())
+        buf.extend([0]*(3*self.picks.shape[2]-len(buf)))
+        return buf
+
+    def to_dict(self):
         result = {'packs': self.packs.tolist(),
                   'pack_num': self.pack_num,
                   'picks': self.picks.tolist(),
@@ -45,10 +70,9 @@ class Draft(object):
                   'id': self.id,
                   'players': self.players,
                   'format_code': self.format_code}
-        return json.dumps(result)
+        return result
 
-def load_draft_from_json(json_string):
-    data = json.loads(json_string)
+def load_draft_from_dict(data):
     draft = Draft(id=data['id'],
                   format_code=data['format_code'],
                   players=data['players'],
@@ -62,7 +86,12 @@ def load_draft_from_json(json_string):
 class DraftController(object):
     def __init__(self, format_code):
         self.sess = tf.Session()
-        self.model = load(format_code, self.sess)
+        if os.path.exists(os.path.join(DIR, "models", format_code, "model.meta")):
+            self.model = load(format_code, self.sess)
+        else:
+            self.model = Model(format_code=format_code)
+            self.model.build()
+            self.sess.run(tf.global_variables_initializer())
         self.index = self.load_card_index(format_code)
         self.format_code = format_code
 
@@ -115,10 +144,16 @@ class DraftController(object):
         if np.min(draft.picks[draft.pack_num, :, -1]) != 0:
             draft.picked = new_picked
             draft.pack_num += 1
+            if draft.pack_num == self.model.settings['round_num']:
+                with open(os.path.join(DIR, "drafts", "{}.json".format(draft.id)), "wt") as f:
+                    draft_json = draft.to_dict()
+                    del draft_json['picked']
+                    del draft_json['pack_num']
+                    json.dump(draft_json, f)
 
-
-
-
-
-
-
+    def online_training_step(self, training_data):
+        loss, Y_pred = self.model.train(sess=self.sess,
+                                        X=training_data['X'],
+                                        Y=training_data['Y'])
+        tf.train.Saver(tf.trainable_variables()).save(self.sess, os.path.join(DIR, "models", self.format_code, "model"))
+        return loss, Y_pred

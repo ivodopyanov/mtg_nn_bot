@@ -51,7 +51,7 @@ class Trainer(object):
         training_data = data[:split]
         test_data = data[split:]
         with tf.Session() as sess:
-            model = Model(self.format_code, sess.graph)
+            model = Model(self.format_code)
             model.build()
             sess.run(tf.global_variables_initializer())
             for epoch in range(epochs):
