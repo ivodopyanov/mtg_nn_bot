@@ -169,6 +169,7 @@ class Model(object):
 
 def load(format, sess):
     saver = tf.train.import_meta_graph(os.path.join(DIR, "models", format, "model.meta"))
+    sess.run(tf.global_variables_initializer())
     saver.restore(sess, os.path.join(DIR, "models", format, "model"))
     model = Model(format_code=format)
     return model

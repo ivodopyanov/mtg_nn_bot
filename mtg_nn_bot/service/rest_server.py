@@ -5,6 +5,8 @@ from draft_controller import DraftController, load_draft_from_dict, Draft
 from .. import DIR
 from time import sleep
 from collections import defaultdict
+import datetime
+import traceback
 
 import json
 import redis
@@ -16,38 +18,61 @@ TIMEOUT = 1
 STOP = False
 SETTINGS = None
 
+
 def run_server():
     while True:
         if STOP:
             break
-        init()
-        drafts, new_drafts, training_data = get_drafts()
-        for format_code in drafts.keys():
-            controller = DRAFT_CONTROLLERS[format_code]
-            if controller.model.settings['training']==1:
-                training_data_buf = R.get(TRAINING_DATA_KEY.format(format_code))
-                if training_data_buf is None:
-                    training_data_buf = {'X': [], 'Y': []}
-                else:
-                    training_data_buf = json.loads(training_data_buf)
-                if format_code in training_data:
-                    training_data_buf['X'].extend(training_data[format_code]['X'])
-                    training_data_buf['Y'].extend(training_data[format_code]['Y'])
-                if len(training_data_buf['X']) >= controller.model.settings['batch_size']:
-                    loss, Y_pred = controller.online_training_step(training_data=training_data_buf)
-                    training_data_buf = {'X': [], 'Y': []}
-                R.set(TRAINING_DATA_KEY.format(format_code), json.dumps(training_data_buf))
-            controller.predict(drafts[format_code])
-            for draft in drafts[format_code]:
-                if draft.pack_num != controller.model.settings['round_num']:
-                    R.set(DRAFT_KEY.format(draft.id), json.dumps(draft.to_dict()))
-                    R.sadd(READY_DRAFTS, draft.id)
-                    if draft.id in new_drafts:
-                        R.set(DRAFT_TEMP_KEY.format(new_drafts[draft.id]), draft.id)
-                else:
-                    R.delete(DRAFT_KEY.format(draft.id))
+        try:
+            run_step()
+        except Exception as e:
+            with open(os.path.join(DIR, "logs", "{}.log".format(datetime.date.today().strftime('%d_%m_%Y'))), "at") as f:
+                f.write("{} {}\n".format(datetime.datetime.now(), str(e)))
+                f.write(traceback.format_exc())
+            raise
 
         sleep(TIMEOUT)
+
+def run_step():
+    start_time = datetime.datetime.now()
+    init()
+    logfile = open(os.path.join(DIR, "logs", "{}.log".format(datetime.date.today().strftime('%d_%m_%Y'))), "at")
+    drafts, new_drafts, training_data = get_drafts()
+    logfile.write("{} - start\n".format(start_time))
+    q = 1/0
+    for format_code in drafts.keys():
+        log_text = ["\t{}".format(format_code)]
+        controller = DRAFT_CONTROLLERS[format_code]
+        if controller.model.settings['training']==1:
+            log_text.append("{}ms training".format((datetime.datetime.now()-start_time).microseconds/1000))
+            training_data_buf = R.get(TRAINING_DATA_KEY.format(format_code))
+            if training_data_buf is None:
+                training_data_buf = {'X': [], 'Y': []}
+            else:
+                training_data_buf = json.loads(training_data_buf)
+            if format_code in training_data:
+                training_data_buf['X'].extend(training_data[format_code]['X'])
+                training_data_buf['Y'].extend(training_data[format_code]['Y'])
+            if len(training_data_buf['X']) >= controller.model.settings['batch_size']:
+                loss, Y_pred = controller.online_training_step(training_data=training_data_buf)
+                log_text.append("Loss = {:.2f}".format(loss))
+                training_data_buf = {'X': [], 'Y': []}
+            R.set(TRAINING_DATA_KEY.format(format_code), json.dumps(training_data_buf))
+        log_text.append("{}ms predicting {} drafts".format((datetime.datetime.now()-start_time).microseconds/1000, len(drafts[format_code])))
+        controller.predict(drafts[format_code])
+        for draft in drafts[format_code]:
+            if draft.pack_num != controller.model.settings['round_num']:
+                R.set(DRAFT_KEY.format(draft.id), json.dumps(draft.to_dict()))
+                R.sadd(READY_DRAFTS, draft.id)
+                if draft.id in new_drafts:
+                    R.set(DRAFT_TEMP_KEY.format(new_drafts[draft.id]), draft.id)
+            else:
+                R.delete(DRAFT_KEY.format(draft.id))
+        log_text.append("{}ms end\n".format((datetime.datetime.now()-start_time).microseconds/1000))
+        logfile.write(";\t".join(log_text))
+    logfile.write("{} - end\n\n".format(datetime.datetime.now()))
+    logfile.close()
+
 
 def init():
     global SETTINGS
