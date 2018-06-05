@@ -19,7 +19,7 @@ app = Flask(__name__)
 R = redis.StrictRedis()
 
 
-@app.route("/start_draft", methods=['POST'])
+@app.route("/api/start_draft", methods=['POST'])
 def start_draft():
     data = dict(request.form)
     if 'format' not in data:
@@ -42,7 +42,7 @@ def start_draft():
             del draft['picked']
             return jsonify(draft)
 
-@app.route("/make_pick", methods=['POST'])
+@app.route("/api/make_pick", methods=['POST'])
 def make_pick():
     data = dict(request.form)
     if 'id' not in data:
@@ -73,7 +73,7 @@ def make_pick():
                 draft = json.load(f)
                 return jsonify(draft)
 
-@app.route("/get_draft", methods=['POST'])
+@app.route("/api/get_draft", methods=['POST'])
 def get_draft():
     if 'id' not in request.form:
         raise Exception("Missing parameter 'id'")
@@ -90,7 +90,7 @@ def get_draft():
     return jsonify(draft)
 
 
-@app.route('/shutdown_mvutnsifhny', methods=['POST'])
+@app.route('/api/shutdown_mvutnsifhny', methods=['POST'])
 def shutdown():
     func = request.environ.get('werkzeug.server.shutdown')
     func()

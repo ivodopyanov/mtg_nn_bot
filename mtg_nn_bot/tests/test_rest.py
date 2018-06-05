@@ -15,10 +15,10 @@ from ..service.rest_server import run_server, stop_server
 
 R = redis.StrictRedis(host='localhost', port=6379, db=0)
 
-URL_START_DRAFT = "http://127.0.0.1:5000/start_draft"
-URL_MAKE_PICK = "http://127.0.0.1:5000/make_pick"
-URL_GET_DRAFT = "http://127.0.0.1:5000/get_draft"
-URL_SHUTDOWN = "http://127.0.0.1:5000/shutdown_mvutnsifhny"
+URL_START_DRAFT = "http://127.0.0.1:5000/api/start_draft"
+URL_MAKE_PICK = "http://127.0.0.1:5000/api/make_pick"
+URL_GET_DRAFT = "http://127.0.0.1:5000/api/get_draft"
+URL_SHUTDOWN = "http://127.0.0.1:5000/api/shutdown_mvutnsifhny"
 
 class ModelTests(unittest.TestCase):
     @classmethod
