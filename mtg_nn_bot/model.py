@@ -4,13 +4,23 @@ import json
 import os
 from io import open
 import numpy as np
-from . import DIR
-
+from . import DIR, INDEX, PACK_SIZE
 
 class Model(object):
-    def __init__(self, format_code):
-        with open(os.path.join(DIR, "models", format_code, "format_settings.json"), "rt") as f:
+    def __init__(self, boosters):
+        with open("../model_settings.json", "rt") as f:
             self.settings = json.load(f)
+        self.boosters = boosters
+        self.build_vocab()
+
+    def build_vocab(self):
+        self.vocab_decode = [0]
+        self.vocab_encode = {0:0}
+        expansions = sorted(set(self.boosters))
+        for expansion in expansions:
+            for card_number in INDEX.get_expansion(expansion).get_card_numbers():
+                self.vocab_encode[card_number]= len(self.vocab_decode)
+                self.vocab_decode.append(card_number)
 
 
     def build_trainer(self, card_embeddings, v, memory_layer, query_layer):
@@ -45,10 +55,10 @@ class Model(object):
 
     def build_draft_predictor(self, card_embeddings, v, memory_layer, query_layer):
         with tf.variable_scope("draft"):
-            packs = tf.placeholder(tf.int32, shape=[None, self.settings['player_num'], self.settings['pack_size']], name="packs")
-            picked = tf.placeholder(tf.float32, shape=[None, self.settings['player_num'], self.settings['emb_dim']], name="picked")
+            packs = tf.placeholder(tf.int32, shape=[None, None, PACK_SIZE], name="packs")
+            picked = tf.placeholder(tf.float32, shape=[None, None, self.settings['emb_dim']], name="picked")
             pack_num = tf.placeholder(tf.int32, shape=[None], name="pack_num")
-            picks = tf.placeholder(tf.int32, shape=[None, self.settings['player_num'], self.settings['pack_size']], name="picks")
+            picks = tf.placeholder(tf.int32, shape=[None, None, PACK_SIZE], name="picks")
 
             packs_embedded = tf.nn.embedding_lookup(card_embeddings, packs, name="packs_embeddings")
             def pick_step(initializer, elems):
@@ -60,11 +70,11 @@ class Model(object):
 
                 pack_card_mask = tf.reduce_max(current_packs, axis=-1)
                 scores = tf.reduce_sum(v * tf.nn.tanh(memory_layer(current_packs) + tf.expand_dims(query_layer(picked/tf.cast(pick_num, tf.float32)), 2)), [3])
-                scores = tf.where(tf.equal(pack_card_mask, 0), tf.zeros_like(scores), scores)
+                scores = tf.where(tf.equal(pack_card_mask, 0), tf.ones_like(scores)*(-100), scores)
                 chosen_cards = tf.cast(tf.argmax(scores, axis=-1), tf.int32)
                 chosen_cards = tf.where(tf.equal(picks, 0), chosen_cards, picks-1)
 
-                chosen_cards_buf = tf.expand_dims(tf.one_hot(chosen_cards, self.settings['pack_size']),3)
+                chosen_cards_buf = tf.expand_dims(tf.one_hot(chosen_cards, PACK_SIZE),3)
                 picked = picked + tf.reduce_sum(current_packs*chosen_cards_buf, axis=2)
                 current_packs = current_packs*(1-chosen_cards_buf)
 
@@ -77,7 +87,7 @@ class Model(object):
             scores_init = tf.zeros_like(packs_embedded[:,:,:,0])
             chosen_cards_init = tf.zeros_like(packs[:,:,0])
             result = tf.scan(fn=pick_step,
-                             elems=[tf.range(1, self.settings['pack_size']+1), tf.transpose(picks, [2,0,1])],
+                             elems=[tf.range(1, PACK_SIZE+1), tf.transpose(picks, [2,0,1])],
                              initializer=[packs_embedded,
                                           picked,
                                           scores_init,
@@ -92,7 +102,7 @@ class Model(object):
     def build(self):
         card_embeddings = tf.get_variable(name="card_embeddings_var",
                                           dtype=tf.float32,
-                                          shape=[self.settings['card_count']+1, self.settings['emb_dim']])
+                                          shape=[INDEX.get_card_count(set(self.boosters))+1, self.settings['emb_dim']])
         v = tf.get_variable("attention_v", [self.settings['rnn_units']], dtype=tf.float32)
         query_layer = tf.layers.Dense(units=self.settings['rnn_units'], use_bias=False, dtype=tf.float32, name="query_layer")
         memory_layer = tf.layers.Dense(units=self.settings['rnn_units'], use_bias=False, dtype=tf.float32, name="memory_layer")
@@ -106,8 +116,8 @@ class Model(object):
     def get_feed_dict_predict(self, sess, X):
         packs = []
         picks = []
-        for sample in X:
-            packs.append(sample['pack'])
+        for sample_id, sample in enumerate(X):
+            packs.append([self.vocab_encode[card_num] for card_num in sample['pack']])
             picks.append(sample['picks'])
         feed = {
             sess.graph.get_tensor_by_name("packs:0"): packs,
@@ -140,12 +150,14 @@ class Model(object):
 
 
     def get_feed_dict_predict_draft(self, sess, X):
-        packs = np.zeros((len(X), self.settings['player_num'], self.settings['pack_size']), dtype=np.int32)
-        picked = np.zeros((len(X), self.settings['player_num'], self.settings['emb_dim']), dtype=np.float32)
+        packs = np.zeros((len(X), X[0].packs.shape[1], PACK_SIZE), dtype=np.int32)
+        picked = np.zeros((len(X), X[0].packs.shape[1], self.settings['emb_dim']), dtype=np.float32)
         pack_nums = np.zeros((len(X),), dtype=np.int32)
-        picks = np.zeros((len(X), self.settings['player_num'], self.settings['pack_size']))
+        picks = np.zeros((len(X), X[0].packs.shape[1], PACK_SIZE))
         for draft_id, draft in enumerate(X):
-            packs[draft_id] = draft.packs[draft.pack_num]
+            for player_num in range(draft.packs.shape[1]):
+                for card_pos in range(PACK_SIZE):
+                    packs[draft_id, player_num, card_pos] = self.vocab_encode[draft.packs[draft.pack_num, player_num, card_pos]]
             picked[draft_id] = draft.picked
             pack_nums[draft_id] = draft.pack_num
             picks[draft_id] = draft.picks[draft.pack_num]
@@ -167,9 +179,9 @@ class Model(object):
 
 
 
-def load(format, sess):
-    saver = tf.train.import_meta_graph(os.path.join(DIR, "models", format, "model.meta"))
+def load(boosters, sess):
+    saver = tf.train.import_meta_graph(os.path.join(DIR, "models", "_".join(boosters), "model.meta"))
     sess.run(tf.global_variables_initializer())
-    saver.restore(sess, os.path.join(DIR, "models", format, "model"))
-    model = Model(format_code=format)
+    saver.restore(sess, os.path.join(DIR, "models", "_".join(boosters), "model"))
+    model = Model(boosters=boosters)
     return model
