@@ -18,6 +18,8 @@ R = redis.StrictRedis(host='localhost', port=6379, db=0)
 URL_START_DRAFT = "http://127.0.0.1:5000/api/start_draft"
 URL_MAKE_PICK = "http://127.0.0.1:5000/api/make_pick"
 URL_GET_DRAFT = "http://127.0.0.1:5000/api/get_draft"
+URL_P1P1_SCORES = "http://127.0.0.1:5000/api/p1p1"
+URL_CARD_EMBEDDINGS = "http://127.0.0.1:5000/api/card_embeddings"
 URL_SHUTDOWN = "http://127.0.0.1:5000/api/shutdown_mvutnsifhny"
 
 #FORMAT = "XLN_XLN_XLN"
@@ -41,6 +43,21 @@ class ModelTests(unittest.TestCase):
         requests.post(URL_SHUTDOWN)
         stop_server()
 
+    def test_p1p1_scores(self):
+        response = requests.post(URL_P1P1_SCORES, {'format':FORMAT})
+        result = json.loads(response.text)
+        response = requests.post(URL_P1P1_SCORES, {'format':"XLN_RIX_XLN"})
+        result = json.loads(response.text)
+        self.assertEqual(result, {})
+
+    def test_card_embeddings(self):
+        response = requests.post(URL_CARD_EMBEDDINGS, {'format':FORMAT})
+        result = json.loads(response.text)
+        response = requests.post(URL_CARD_EMBEDDINGS, {'format':"XLN_RIX_XLN"})
+        result = json.loads(response.text)
+        self.assertEqual(result, {})
+
+
     def test_single_player(self):
         output_file = open(os.path.join(DIR, "rest_tests", "draft.txt"), "wt")
         response = requests.post(URL_START_DRAFT, {'format':FORMAT, "players":[False,True,True,True,True,True,True,True]})
@@ -56,8 +73,10 @@ class ModelTests(unittest.TestCase):
             expansion = FORMAT.split("_")[pack_num]
             for pick_num in range(PACK_SIZE):
                 potential_card_pos = [i for i in range(current_packs.shape[1]) if current_packs[0][i]!=0]
+                if len(potential_card_pos) == 0:
+                    break
                 card_pos = choice(potential_card_pos)
-                response = requests.post(URL_MAKE_PICK, {'id': result['id'], 'player': 0, 'pack_num': pack_num, 'pick_num': pick_num, 'pick_pos': card_pos})
+                response = requests.post(URL_MAKE_PICK, {'id': result['id'], 'player': 0, 'pick_num': pick_num, 'pick_pos': card_pos})
                 result = json.loads(response.text)
                 picks = np.asarray(result['picks'])
                 for player_num in range(picks.shape[1]):
@@ -102,6 +121,8 @@ class ModelTests(unittest.TestCase):
             for pick_num in range(PACK_SIZE):
                 for player_num in range(picks.shape[1]):
                     picked_card_pos = picks[pack_num][player_num][pick_num] - 1
+                    if picked_card_pos == -1:
+                        continue
                     card_names = []
                     for card_in_pack_pos in range(current_packs.shape[1]):
                         if current_packs[player_num][card_in_pack_pos]!=0:
@@ -131,8 +152,10 @@ def draft_player(player, draft):
                 draft = json.loads(response.text)
                 current_pack = get_current_pack(player, draft, pack_num)
             potential_card_pos = [i for i in range(len(current_pack)) if current_pack[i]!=0]
+            if len(potential_card_pos) == 0:
+                break
             card_pos = choice(potential_card_pos)
-            response = requests.post(URL_MAKE_PICK, {'id': draft['id'], 'player': player, 'pack_num': pack_num, 'pick_num': pick_num, 'pick_pos': card_pos})
+            response = requests.post(URL_MAKE_PICK, {'id': draft['id'], 'player': player, 'pick_num': pick_num, 'pick_pos': card_pos})
             draft = json.loads(response.text)
         pack_not_ended = any(player_num for player_num in range(len(draft['players'])) if draft['picks'][pack_num][player_num][-1]==0)
         if pack_not_ended:

@@ -61,6 +61,8 @@ class Model(object):
             picks = tf.placeholder(tf.int32, shape=[None, None, PACK_SIZE], name="picks")
 
             packs_embedded = tf.nn.embedding_lookup(card_embeddings, packs, name="packs_embeddings")
+            initial_packs_mask = tf.tile(tf.expand_dims(packs, -1), [1,1,1,self.settings['emb_dim']])
+            packs_embedded = tf.where(tf.equal(initial_packs_mask, 0), tf.zeros_like(packs_embedded), packs_embedded)
             def pick_step(initializer, elems):
                 pick_num = elems[0]
                 picks = elems[1]
@@ -69,9 +71,11 @@ class Model(object):
                 pack_num = initializer[4]
 
                 pack_card_mask = tf.reduce_max(current_packs, axis=-1)
+                any_cards_in_pack_mask = tf.reduce_max(pack_card_mask, axis=-1)
                 scores = tf.reduce_sum(v * tf.nn.tanh(memory_layer(current_packs) + tf.expand_dims(query_layer(picked/tf.cast(pick_num, tf.float32)), 2)), [3])
                 scores = tf.where(tf.equal(pack_card_mask, 0), tf.ones_like(scores)*(-100), scores)
                 chosen_cards = tf.cast(tf.argmax(scores, axis=-1), tf.int32)
+                chosen_cards = tf.where(tf.equal(any_cards_in_pack_mask, 0), tf.ones_like(chosen_cards)*(-1), chosen_cards)
                 chosen_cards = tf.where(tf.equal(picks, 0), chosen_cards, picks-1)
 
                 chosen_cards_buf = tf.expand_dims(tf.one_hot(chosen_cards, PACK_SIZE),3)
@@ -97,6 +101,15 @@ class Model(object):
             scores = tf.transpose(result[2], [1,2,0,3], name="predicted_scores")
             chosen_cards = tf.transpose(result[3], [1,2,0], name="predicted_picks")
 
+    def build_p1p1_predictor(self, card_embeddings, v, memory_layer, query_layer):
+        with tf.variable_scope("p1p1"):
+            all_cards = tf.ones([1, len(self.vocab_decode)], dtype=tf.int32)
+            packs_embedded = tf.nn.embedding_lookup(card_embeddings, all_cards, name="packs_embeddings")
+            picked = tf.zeros([1, self.settings['emb_dim']], dtype=tf.float32)
+            scores = tf.reduce_sum(v * tf.nn.tanh(memory_layer(packs_embedded) + tf.expand_dims(query_layer(picked), 1)), [2], name="p1p1_scores")
+
+
+
 
 
     def build(self):
@@ -109,6 +122,7 @@ class Model(object):
 
         self.build_trainer(card_embeddings, v, memory_layer, query_layer)
         self.build_draft_predictor(card_embeddings, v, memory_layer, query_layer)
+        self.build_p1p1_predictor(card_embeddings, v, memory_layer, query_layer)
 
 
 
@@ -176,6 +190,20 @@ class Model(object):
                                                sess.graph.get_tensor_by_name("draft/predicted_picks:0"),
                                                sess.graph.get_tensor_by_name("draft/predicted_scores:0")], feed_dict=fd)
         return new_picked, Y_pred, scores
+
+    def predict_p1p1_scores_and_card_embeddings(self, sess):
+        scores = sess.run([sess.graph.get_tensor_by_name("p1p1/p1p1_scores:0"),
+                           sess.graph.get_tensor_by_name("card_embeddings_var:0")])
+        p1p1_scores_data = scores[0].tolist()
+        card_embeddings_data = scores[1].tolist()
+        p1p1_scores = dict()
+        card_embeddings = dict()
+        for card_pos, card_id in enumerate(self.vocab_decode):
+            if card_pos == 0:
+                continue
+            p1p1_scores[card_id]=p1p1_scores_data[0][card_pos]
+            card_embeddings[card_id] = card_embeddings_data[card_pos]
+        return p1p1_scores, card_embeddings
 
 
 

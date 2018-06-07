@@ -11,12 +11,10 @@ from time import sleep
 import json
 
 from constants import *
-from .. import DIR
-
-TIMEOUT = 0.5
+from .. import DIR, SERVICE_TIMEOUT, REDIS_PORT
 
 app = Flask(__name__)
-R = redis.StrictRedis()
+R = redis.StrictRedis(host='localhost', port=REDIS_PORT, db=0)
 
 
 @app.route("/api/start_draft", methods=['POST'])
@@ -33,7 +31,7 @@ def start_draft():
     R.set(DRAFT_TEMP_KEY.format(temp_id), -1)
     R.rpush(START_DRAFT, json.dumps(data))
     while True:
-        sleep(TIMEOUT)
+        sleep(SERVICE_TIMEOUT)
         draft_id = R.get(DRAFT_TEMP_KEY.format(temp_id))
         if draft_id != "-1":
             R.delete(DRAFT_TEMP_KEY.format(temp_id))
@@ -49,20 +47,17 @@ def make_pick():
         raise Exception("Missing parameter 'id'")
     if 'player' not in data:
         raise Exception("Missing parameter 'player'")
-    if 'pack_num' not in data:
-        raise Exception("Missing parameter 'pack_num'")
     if 'pick_num' not in data:
         raise Exception("Missing parameter 'pick_num'")
     if 'pick_pos' not in data:
         raise Exception("Missing parameter 'pick_pos'")
     data['id'] = int(data['id'][0])
-    data['pack_num'] = int(data['pack_num'][0])
     data['pick_num'] = int(data['pick_num'][0])
     data['player'] = int(data['player'][0])
     data['pick_pos'] = int(data['pick_pos'][0])
     R.rpush(MAKE_PICK, json.dumps(data))
     while True:
-        sleep(TIMEOUT)
+        sleep(SERVICE_TIMEOUT)
         if R.sismember(READY_DRAFTS, data['id']):
             R.srem(READY_DRAFTS, data['id'])
             draft = json.loads(R.get(DRAFT_KEY.format(data['id'])))
@@ -72,6 +67,10 @@ def make_pick():
             with open(os.path.join(DIR, "drafts", "{}.json".format(data['id'])), "rt") as f:
                 draft = json.load(f)
                 return jsonify(draft)
+        elif R.get(DRAFT_KEY.format(data['id'])) is None:
+            raise Exception("Draft #{} is missing".format(data['id']))
+
+
 
 @app.route("/api/get_draft", methods=['POST'])
 def get_draft():
@@ -90,11 +89,38 @@ def get_draft():
     return jsonify(draft)
 
 
+@app.route("/api/p1p1", methods=['POST'])
+def get_p1p1_scores():
+    if 'format' not in request.form:
+        raise Exception("Missing parameter 'format'")
+    format = request.form['format']
+    data = R.get(P1P1_SCORES.format(format))
+    if data is None:
+        data = {}
+    else:
+        data = json.loads(data)
+    return jsonify(data)
+
+@app.route("/api/card_embeddings", methods=['POST'])
+def get_card_embeddings():
+    if 'format' not in request.form:
+        raise Exception("Missing parameter 'format'")
+    format = request.form['format']
+    data = R.get(CARD_EMBEDDINGS.format(format))
+    if data is None:
+        data = {}
+    else:
+        data = json.loads(data)
+    return jsonify(data)
+
+
+
+
 @app.route('/api/shutdown_mvutnsifhny', methods=['POST'])
 def shutdown():
     func = request.environ.get('werkzeug.server.shutdown')
     func()
-    return None
+    return jsonify("success")
 
 def get_free_temp_draft_id():
     for id in range(1,99999):

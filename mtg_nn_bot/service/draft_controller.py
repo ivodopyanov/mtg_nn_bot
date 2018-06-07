@@ -143,7 +143,7 @@ class DraftController(object):
                 valid_picks = valid_picks[1:]+valid_picks[:1]
         draft.picks[draft.pack_num] = new_picks
         draft.scores[draft.pack_num] = scores
-        if np.min(draft.picks[draft.pack_num, :, -1]) != 0:
+        if np.count_nonzero(draft.picks[draft.pack_num]) == np.count_nonzero(draft.packs[draft.pack_num]):
             draft.picked = new_picked
             draft.pack_num += 1
             if draft.pack_num == len(self.boosters):
@@ -159,3 +159,7 @@ class DraftController(object):
                                         Y=training_data['Y'])
         tf.train.Saver(tf.trainable_variables()).save(self.sess, os.path.join(DIR, "models", "_".join(self.boosters), "model"))
         return loss, Y_pred
+
+
+    def predict_p1p1_scores_and_card_embeddings(self):
+        return self.model.predict_p1p1_scores_and_card_embeddings(self.sess)

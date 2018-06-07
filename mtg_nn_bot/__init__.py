@@ -5,11 +5,14 @@ import numpy as np
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 PACK_SIZE = 15
+REDIS_TIMEOUT = 60*30
+SERVICE_TIMEOUT = 0.5
 PROBS = {"rare":7}
 
 with open(os.path.join(__location__, "settings.json"), "rt") as f:
     settings = json.load(f)
     DIR = os.path.expanduser(settings['dir'])
+    REDIS_PORT = settings['redis_port']
 
 class Expansion(object):
     def __init__(self, data):

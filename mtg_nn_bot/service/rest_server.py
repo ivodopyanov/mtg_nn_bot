@@ -2,7 +2,7 @@
 import os
 from constants import *
 from draft_controller import DraftController, load_draft_from_dict, Draft
-from .. import DIR
+from .. import DIR, SERVICE_TIMEOUT, REDIS_TIMEOUT, REDIS_PORT
 from time import sleep
 from collections import defaultdict
 import datetime
@@ -11,9 +11,8 @@ import traceback
 import json
 import redis
 
-R = redis.StrictRedis(host='localhost', port=6379, db=0)
+R = redis.StrictRedis(host='localhost', port=REDIS_PORT, db=0)
 DRAFT_CONTROLLERS = dict()
-TIMEOUT = 0.25
 STOP = False
 SETTINGS = None
 
@@ -29,7 +28,7 @@ def run_server():
                 f.write("{} {}\n".format(datetime.datetime.now(), str(e)))
                 f.write(traceback.format_exc())
             raise
-        sleep(TIMEOUT)
+        sleep(SERVICE_TIMEOUT)
 
 def run_step():
     start_time = datetime.datetime.now()
@@ -51,6 +50,9 @@ def run_step():
             training_data_buf['Y'].extend(training_data[format_code]['Y'])
         if len(training_data_buf['X']) >= controller.model.settings['batch_size']:
             loss, Y_pred = controller.online_training_step(training_data=training_data_buf)
+            p1p1_scores, card_embeddings = controller.predict_p1p1_scores_and_card_embeddings()
+            R.set(P1P1_SCORES.format(format_code), json.dumps(p1p1_scores))
+            R.set(CARD_EMBEDDINGS.format(format_code), json.dumps(card_embeddings))
             log_text.append("Loss = {:.2f}".format(loss))
             training_data_buf = {'X': [], 'Y': []}
         R.set(TRAINING_DATA_KEY.format(format_code), json.dumps(training_data_buf))
@@ -59,6 +61,7 @@ def run_step():
         for draft in drafts[format_code]:
             if draft.pack_num != len(controller.boosters):
                 R.set(DRAFT_KEY.format(draft.id), json.dumps(draft.to_dict()))
+                R.expire(DRAFT_KEY.format(draft.id), REDIS_TIMEOUT)
                 R.sadd(READY_DRAFTS, draft.id)
                 if draft.id in new_drafts:
                     R.set(DRAFT_TEMP_KEY.format(new_drafts[draft.id]), draft.id)
