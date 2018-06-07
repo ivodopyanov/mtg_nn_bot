@@ -11,7 +11,7 @@ from time import sleep
 import json
 
 from constants import *
-from .. import DIR, SERVICE_TIMEOUT, REDIS_PORT
+from .. import DIR, SERVICE_TIMEOUT, REDIS_PORT, FLASK_PORT
 
 app = Flask(__name__)
 R = redis.StrictRedis(host='localhost', port=REDIS_PORT, db=0)
@@ -132,12 +132,12 @@ def get_free_temp_draft_id():
 
 def run_client():
     logging.basicConfig(level=logging.INFO)
-    handler = RotatingFileHandler("/tmp/ml_service.log", maxBytes=10*1024*1024, backupCount=10)
+    handler = RotatingFileHandler("/tmp/ml_service2.log", maxBytes=10*1024*1024, backupCount=10)
     formatter = logging.Formatter(fmt=u'%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler.setFormatter(formatter)
     handler.setLevel(logging.INFO)
     app.logger.addHandler(handler)
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=FLASK_PORT)
 
 if __name__ == "__main__":
     run_client()

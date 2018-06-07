@@ -13,6 +13,7 @@ with open(os.path.join(__location__, "settings.json"), "rt") as f:
     settings = json.load(f)
     DIR = os.path.expanduser(settings['dir'])
     REDIS_PORT = settings['redis_port']
+    FLASK_PORT = settings['flask_port']
 
 class Expansion(object):
     def __init__(self, data):
