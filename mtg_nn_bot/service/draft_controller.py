@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-from mtg_nn_bot.model import load, Model
+from ..model import load, Model
 import tensorflow as tf
 import numpy as np
 from random import choice, randint
